@@ -178,7 +178,7 @@ DEFINE_EXCHANGE_PROPERTY(interface_exchange, sourceIndex, sinkIndex, sourceSpeci
 {
 
 }
-
+/*this is the new attempt*/
 DEFINE_MASS_TRANSFER(interface_exchange, mixture_thread, fromPhaseIndex, fromSpeciesIndex, toPhaseindex, toSpeciesIndex)
 {
 		
