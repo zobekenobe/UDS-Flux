@@ -1,14 +1,11 @@
-Particle-Image-Velocimetry
-==========================
+User Defined Function (UDF) for defining Scalar transport equations. 
 
-Image Processing and Image Vector mapping of raw image snapshots using PIV technique
+Primary attempts:
+Calculation of the scalar concentration at the permeable surface using the Robinson Boundary Condition
+Estimation of the permeation flux through the permeable surface
+Calculation of the PC layer thickness 
+Scalar concentration 
 
-Raw images obtained from PIV technique have been processed 
--noise removed, 
--out-of-plane vectors removed, 
--morphological opening 
--mapping of PIV velocity vectors (after scaling) back onto the image
--- method sub2ind maps maps the vectors onto the raw image
-
-After processing; turbulent eddy length, time and velocity scale can be obtained.
+The above code is written and formatted in the C language modified for the use with ANSYS fluent for CFD applications.
+The above code has to be compiled first to prepare the linked libraries before use
 
