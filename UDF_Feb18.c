@@ -1,14 +1,15 @@
 #include "udf.h"
 #include "sg.h"
 
-real m_A0 = 0.0002; 	// solute mass fraction at inlet (kg/kg)
-real Re = 400.; 			// feed Reynolds Number - dimensionaless
-real h = 0.0025; 		// channel height 
-real l = 0.060; 			// channel length 
-real b = 0.030;	
-real Dh = 4.0*(30.0/31.0); // Hydraulic Diameter
-real J_v = -0.73e-05; 	// Permeate flux at the wall
-real m_AP = 5.4e-05	;	// m_AP mass fraction of solute on permeate side
+real m_A0 = 0.0002; 				// solute mass fraction at inlet (kg/kg)
+real Re = 400.; 					// feed Reynolds Number - dimensionaless
+real h = 0.0025; 					// channel height 
+real l = 0.055; 					// channel length 
+real b = 0.030;		
+real Dh = 4.0*(30.0/31.0);			// Hydraulic Diameter
+real J_v = -0.73e-05; 				// Permeate flux at the wall
+real m_AP = 5.4e-05	;				// m_AP mass fraction of solute on permeate side
+real m_Aw;
 
 // user defined memory C_UDM
 int x_nondim = 0; 		// x/h dimensionaless distance from the wall
@@ -20,8 +21,9 @@ int k_delta	 = 4; 		// mass transfer coefficient (eq 13)
 // user defined scalar C_UDS index
 int m_A      = 0;
 
+
 // Initialize the domain
-DEFINE_INIT(solute_init, domain_pointer)
+DEFINE_INIT(Solute_Init, domain_pointer)
 {
 	Thread *thread_pointer; 
 	cell_t cellt;
@@ -39,14 +41,9 @@ DEFINE_INIT(solute_init, domain_pointer)
 DEFINE_PROFILE(Side_Inlet_Velocity, thread_pointer, position_index)
 {
 	face_t facet;
-	cell_t cellt;
 	
-	/*real rho = 997.1 + 694.*m_A0;
-	real vis = 0.89e-03*(1+1.63*m_A0);*/
-
-	real rho = 997.1 + 694.*C_UDSI(cellt, thread_pointer, m_A);
-	real vis = 0.89e-03*(1+1.63*C_UDSI(cellt, thread_pointer, m_A));
-
+	real rho = 997.1 + 694.*m_A0;
+	real vis = 0.89e-03*(1+1.63*m_A0);
 
 	begin_f_loop(facet, thread_pointer)
 	{
@@ -58,13 +55,9 @@ DEFINE_PROFILE(Side_Inlet_Velocity, thread_pointer, position_index)
 DEFINE_PROFILE(Top_Inlet_Velocity, thread_pointer, position_index)
 {
 	face_t facet;
-	cell_t cellt;
 	
-	/*real rho = 997.1 + 694.*m_A0;
-	real vis = 0.89e-03*(1+1.63*m_A0);*/
-
-	real rho = 997.1 + 694.*C_UDSI(cellt, thread_pointer, m_A);
-	real vis = 0.89e-03*(1+1.63*C_UDSI(cellt, thread_pointer, m_A));
+	real rho = 997.1 + 694.*m_A0;
+	real vis = 0.89e-03*(1+1.63*m_A0);
 
 	begin_f_loop(facet, thread_pointer)
 	{
@@ -73,7 +66,7 @@ DEFINE_PROFILE(Top_Inlet_Velocity, thread_pointer, position_index)
 	end_f_loop(facet, thread_pointer)
 }
 
-DEFINE_PROFILE(Side_inlet_conc, thread_pointer, position_index)
+DEFINE_PROFILE(Side_Inlet_Conc, thread_pointer, position_index)
 {
 	face_t facet;
 
@@ -84,7 +77,7 @@ DEFINE_PROFILE(Side_inlet_conc, thread_pointer, position_index)
 	end_f_loop(facet, thread_pointer)
 }
 
-DEFINE_PROFILE(bottom_outlet, thread_pointer, position_index)
+DEFINE_PROFILE(Membrane_Bottom_Outlet, thread_pointer, position_index)
 {
 	// mixed boundary condition
 	Thread *t0 = thread_pointer->t0;
@@ -102,7 +95,7 @@ DEFINE_PROFILE(bottom_outlet, thread_pointer, position_index)
 	real k;
 
 	real temp1, temp2; 
-	real m_Aw; 		   // m_A at the wall
+	//real m_Aw; 		   // m_A at the wall
 
 	begin_f_loop(facet, thread_pointer)
 	{
@@ -128,19 +121,25 @@ DEFINE_PROFILE(bottom_outlet, thread_pointer, position_index)
 }
 
 /* Trying to find the mass flow rate at the bottom wall*/
-DEFINE_UDS_FLUX(uds_flux, f, t, i)
+DEFINE_UDS_FLUX(AeonFlux, f, t, i)
 {
 	cell_t c0, c1 = -1;
 	Thread *t0, *t1 = NULL;
-
+	real Jv_wall;
+	real Permeability_factor =  1.1467e-11;
+	real osmotic_pressure = 2.1e5;
+	real rejection = 0.97;
+	real operating_pressure = 4.8e5;
 	real NV_VEC(psi_vec), NV_VEC(A), flux = 0.0;
 
-	c0 = F_C(f,t);
+	c0 = F_C0(f,t);
 	t0 = F_C0_THREAD(f,t);
 	F_AREA(A,f,t);
 
 	/*if the face lies at the domain boundary, use the face values*/
 	/*if the face lies in the domain, use the average of the cell values*/
+
+	Jv_wall = Permeability_factor*(operating_pressure - osmotic_pressure*(m_Aw*rejection));
 
 	if(BOUNDARY_FACE_THREAD_P(t))
 	{
@@ -154,34 +153,24 @@ DEFINE_UDS_FLUX(uds_flux, f, t, i)
 			/*Density is set to the cell value*/
 			dens = C_R(c0,t0);
 
-		NV_DS(psi_vec, =,  F_U(f,t), F_V(f, t), F_W(f,t), *, dens);
+		//NV_DS(psi_vec, =,  F_U(f,t), F_V(f, t), F_W(f,t), *, dens);
+		Jv_wall = Jv_wall * dens;
 
-		flux = NV_DOT(psi_vec, A); /*flux through the Face prescribed*/
+		//flux = NV_DOT(Jv_wall, A); /*flux through the Face prescribed*/
+		return flux = Jv_wall *NV_MAG( A);
 	}
 	else
 	{
 		c1 = F_C1(f,t);
 		t1 = F_C1_THREAD(f, t);
 
-		NV_DS(psi_vec, =, C_U(c0,t0), C_V(c0,t0),C_W(c0,t0),*,C_R(c0,t0));
-		NV_DS(psi_vec, += C_U(c1,t1), C_V(c1,t1),C_W(c1,t1),*,C_R(c1,t1));
-
-		flux = NV_DOT(psi_vec, A)/2.0; /*Average flux through the face*/
-
+		Jv_wall *= (C_R(c0,t0)+ C_R(c1,t1));
+		
+		//flux = NV_DOT(Jv_wall, A)/2.0; /*Average flux through the face*/
+		flux = Jv_wall * NV_MAG(A)/2.0;
 		return flux;
 	}
 
-}
-
-/*Define the mass transfer at the interface surface*/
-DEFINE_EXCHANGE_PROPERTY(interface_exchange, sourceIndex, sinkIndex, sourceSpeciesFrom, sinkS)
-{
-
-}
-
-DEFINE_MASS_TRANSFER(interface_exchange, mixture_thread, fromPhaseIndex, fromSpeciesIndex, toPhaseindex, toSpeciesIndex)
-{
-		
 }
 
 /* defining the fluid density (page 2090) */
@@ -202,7 +191,7 @@ DEFINE_PROPERTY(solvent_viscosity, cellt, thread_pointer)
 	return 0.89e-03*(1+0.63*C_UDSI(cellt, thread_pointer, m_A));
 }
 
-DEFINE_ADJUST(performanceCalculation, domain_pointer)
+DEFINE_ADJUST(Performance_Calculation, domain_pointer)
 {
 	/*This routine calculates the x/h, y/h, gamma, delta and k/delta*/
 
