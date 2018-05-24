@@ -1,0 +1,12 @@
+1. osmotic_m_Aw is growing to a very large number, osmotic_m_Ap is shrinking to zero
+hence the difference is getting extremely large.
+
+2. Checking for the face values of the scalar terms: The scalar keeps getting overcalculated
+
+3. When the inlet concentration is on along with the inlet velocity, the range of values is well calculated and within 
+	an expected range
+
+4. When the bottom concentration is on then there was a segmentation error
+
+5. temp1 and temp2 are escalating the values of the UDSI; dr (centroid distance between the neighbouring cell 
+	and the boundary face)
