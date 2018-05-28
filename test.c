@@ -73,36 +73,6 @@ DEFINE_PROPERTY(NaCl_viscosity, cellt, thread_pointer)
 	return 0.89e-03 * ( 1 + 1.63 * C_UDSI(cellt, thread_pointer, m_A));
 }
 
-
-/* velocity inlet macros */
-DEFINE_PROFILE(Nacl_xvel_inlet, thread_pointer, position_index)
-{
-	face_t facet;
-
-	real rho = 997.1 + 694.*m_A0;
-	real vis = 0.89e-03*(1 + 1.63*m_A0);
-
-	begin_f_loop(facet, thread_pointer)
-	{
-		F_PROFILE(facet, thread_pointer, position_index) = Re*vis/(rho * Dh);
-	}
-	end_f_loop(facet, thread_pointer)
-}
-
-DEFINE_PROFILE(Nacl_top_inlet, thread_pointer, position_index)
-{
-	face_t facet;
-	real rho = 997.1 + 694.*m_A0;
-	real vis = 0.89e-03*(1 + 1.63*m_A0);
-
-	begin_f_loop(facet, thread_pointer)
-	{
-		F_PROFILE(facet, thread_pointer, position_index) = Re*vis/(rho * Dh);
-	}
-	end_f_loop(facet, thread_pointer)
-}
-
-
 /* Initial solute concentration */
 /* Initial solute concentration through the side inlet */
 DEFINE_PROFILE(Nacl_mA_inlet, thread_pointer, position_index)
@@ -156,15 +126,13 @@ DEFINE_PROFILE(Nacl_mA_bottom, thread_pointer, position_index)
 		else
 			BOUNDARY_SECONDARY_GRADIENT_SOURCE(source, SV_UDSI_G(m_A), dphi, es, A_by_es, k);
 
-		//temp1 = k * A_by_es/ds;
-		//temp2 = C_UDMI(c0,t0,J_v)* C_R(c0, t0) * NV_MAG(A);
-		temp1 = 1.0;
-		temp2 = 1.0;
+		temp1 = k * A_by_es/ds;
+		temp2 = C_UDMI(c0,t0,J_v)* C_R(c0, t0) * NV_MAG(A);
 		m_Aw  = (temp1 * C_UDSI(c0, t0, m_A) - source + temp2 * C_UDMI(c0, t0,m_Ap))/(temp1 + temp2);
 		//nothing = C_UDSI(cellt, thread_pointer, m_A);
 
 		// ======================================================================== Calculating the Flux =======================================================================
-	/*	osmotic_m_Aw = 805.1e+05 * F_UDSI(facet,thread_pointer,m_A);
+		osmotic_m_Aw = 805.1e+05 * F_UDSI(facet,thread_pointer,m_A);
 		osmotic_m_Ap = 805.1e+05 * R_prime * F_UDSI(facet,thread_pointer,m_A);
 
 		C_UDMI(c0,t0,J_v) = Lp * (del_P - C_UDMI(c0,t0,sigma) * (osmotic_m_Aw - osmotic_m_Ap));
@@ -197,84 +165,3 @@ DEFINE_PROFILE(Nacl_yvel_bottom, thread_pointer, position_index)
 	end_f_loop(facet, thread_pointer)
 }
 
-DEFINE_EXECUTE_AT_END(Nacl_exit_concentration)
-{
-	cell_t cellt;
-	Thread* thread_pointer;
-	real percent_swap;
-
-	Domain* domain_pointer;
-	domain_pointer = Get_Domain(ROOT_DOMAIN_ID);
-
-	thread_loop_c(thread_pointer, domain_pointer)
-	{
-		begin_c_loop(cellt, thread_pointer)
-		{
-			;
-		}
-		end_c_loop(cellt, thread_pointer)
-	}
-}
-
-DEFINE_ADJUST(performance_calculation, domain_pointer)
-{
-	cell_t cellt;
-	Thread* thread_pointer;
-	real x[ND_ND];
-
-	thread_loop_c(thread_pointer, domain_pointer)
-	{
-		begin_c_loop(cellt, thread_pointer)
-		{	
-			C_CENTROID(x, cellt, thread_pointer);
-
-			C_UDMI(cellt, thread_pointer, m_Ap) 	= (1.0-C_UDMI(cellt,thread_pointer,R)) * C_UDSI(cellt,thread_pointer,m_A);
-
-			C_UDMI(cellt, thread_pointer, x_nondim) = x[0]/h;
-
-			C_UDMI(cellt, thread_pointer, y_nondim) = x[1]/h;
-
-			C_UDMI(cellt, thread_pointer, gamma)    = C_UDSI(cellt, thread_pointer, m_A)/m_A0 - 1.0;
-
-			C_UDMI(cellt, thread_pointer, delta)    = (-1.0 * (log((C_UDSI(cellt,thread_pointer,m_A) - C_UDMI(cellt, thread_pointer, m_Ap))/(m_A0 - C_UDMI(cellt, thread_pointer, m_Ap))) * C_UDSI_DIFF(cellt,thread_pointer,m_A)/(C_UDMI(cellt,thread_pointer,J_v) * C_R(cellt,thread_pointer))))/h;
- 
-			C_UDMI(cellt, thread_pointer, k_delta)  = C_UDSI_DIFF(cellt, thread_pointer, m_A)/C_UDMI(cellt, thread_pointer, delta);
-
-			C_UDMI(cellt, thread_pointer,schmidt) 	= C_MU_EFF(cellt,thread_pointer) / C_UDSI_DIFF(cellt,thread_pointer,m_A); 	
-		}
-		end_c_loop(cellt, thread_pointer)
-	}
-}
-
-DEFINE_ADJUST(adjust_scalar, domain_pointer)
-{
-    Thread* thread_pointer;
-    cell_t cellt;
-
-    thread_loop_c(thread_pointer, domain_pointer)
-    {
-        begin_c_loop(cellt, thread_pointer)
-        {
-            C_UDSI(cellt, thread_pointer, 0) = C_DUDX(cellt, thread_pointer);
-            C_UDMI(cellt, thread_pointer, 0) = NV_MAG(C_UDSI_G(cellt, thread_pointer, 0));
-        }
-        end_c_loop(cellt, thread_pointer)
-    }
-}
-
-DEFINE_PROFILE(shear_stress, thread_pointer, position_index)
-{
-    face_t facet;
-    cell_t c0;
-
-    real a = 0.00012;
-
-    Thread *t0 = thread_pointer->t0;
-
-    begin_f_loop(facet, thread_pointer)
-    {
-        c0 = F_C0(facet,thread_pointer);
-        F_PROFILE(facet, thread_pointer, position_index) = -a * C_UDMI(c0, t0, position_index);
-    }
-    end_f_loop(facet, thread_pointer)
-}
